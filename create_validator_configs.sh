@@ -165,7 +165,7 @@ elif [ ! -d "${confs_dir}" ]; then
 fi
 
 generate_token() {
-    docker run legleux/vkt | sed '/^[^[]/s/^/  /' > "${conf_dir}/key_${i}"
+    docker run rippleci/validator_keys_tool | sed '/^[^[]/s/^/  /' > "${conf_dir}/key_${i}"
 }
 
 # Start writing the compose file
