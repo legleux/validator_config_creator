@@ -6,7 +6,7 @@ set -o nounset
 
 rippled_image="rippleci/rippled:develop"
 num_keys=${1:-5}
-num_services=$((num_keys + 1))
+num_services=$num_keys
 confs_dir="$PWD/config"
 conf_file="rippled.cfg"
 validator_hostname="val"
@@ -14,12 +14,17 @@ rippled_name="rippled"
 network_name="rippled_net"
 peer_port=51235
 host_rpc_port=5005
-host_ws_port=6005
-# Only need to define "network" on macOS. Which you may need to change if it conflicts with your local network.
-macos="false"
+host_ws_port=6006
+# network variable only _required_ to be defined on macOS. Which you may need to change from "10.0.0" if it conflicts
+# with your local network. Furthermore, due to how the explorer is configured, to view rippled with "custom network" set
+# to "localhost", rippled will the ports published.
+publish="${PUBLISH:-false}"
 if [ "$(uname -s)" = "Darwin" ]; then
-    macos="true"
-    network="10.0.0"
+    publish="true"
+fi
+if [ "${publish}" = "true" ]; then
+    network="${NETWORK:-10.0.0}"
+    echo "Publishing ${rippled_name}'s ports ${host_rpc_port} ${host_ws_port} on localhost and all interfaces"
 fi
 
 #################################################
@@ -73,6 +78,7 @@ read -r -d '' config_template <<-EOF
   { "command": "log_level", "severity": "debug" }
 
 [features]
+  ## New Features
   AMM
   AMMClawback
   CheckCashMakesTrustLine
@@ -84,54 +90,56 @@ read -r -d '' config_template <<-EOF
   DepositPreauth
   DID
   DisallowIncoming
-  EnforceInvariants
-  Escrow
+  ExpandedSignerList
   Flow
   FlowCross
   FlowSortStrands
   HardenedValidations
+  ImmediateOfferKilled
   MultiSignReserve
   NegativeUNL
-  NonFungibleTokensV1
-  PayChan
+  NFTokenMintOffer
+  NonFungibleTokensV1_1
   PriceOracle
   RequireFullyCanonicalSig
-  SortedDirectories
   TicketBatch
-  TickSize
-  XChainBridge
   XRPFees
 
-  fix1201
-  fix1368
-  fix1373
-  fix1512
+  ## Bug fixes
   fix1513
   fix1515
-  fix1523
-  fix1528
   fix1543
   fix1571
   fix1578
   fix1623
   fix1781
   fixAmendmentMajorityCalc
+  fixAMMOverflowOffer
   fixAMMv1_1
   fixCheckThreading
+  fixDisallowIncomingV1
   fixEmptyDID
+  fixEnforceNFTokenTrustline
+  fixFillOrKill
   fixInnerObjTemplate
+  fixInnerObjTemplate2
   fixMasterKeyAsRegularKey
-  fixNFTokenNegOffer
+  fixNFTokenPageLinks
+  fixNFTokenRemint
   fixNFTokenReserve
   fixNonFungibleTokensV1_2
   fixPayChanRecipientOwnerDir
   fixPreviousTxnID
   fixQualityUpperBound
+  fixReducedOffersV1
+  fixReducedOffersV2
+  fixRemoveNFTokenAutoTrustLine
   fixRmSmallIncreasedQOffers
   fixSTAmountCanonicalize
   fixTakerDryOfferRemoval
+  fixTrustLinesToSelf
   fixUniversalNumber
-  fixXChainRewardRounding
+
 
 [peer_private]
   0
@@ -181,8 +189,9 @@ for i in $(seq 0 $num_services); do
     nodes+=("${node_name}")
 done
 
+set +x
 echo "Writing configs..."
-for i in $(seq 0 ${num_services}); do
+for i in $(seq 0 $num_services); do
     node_name=${nodes[$i]}
     signing_support="false"
     if [ "${nodes[$i]}" = "${rippled_name}" ]; then
@@ -211,7 +220,7 @@ for i in $(seq 0 ${num_services}); do
 
     # All nodes get a list of all other nodes except a validator's own
     printf "%s\n" "[ips_fixed]" >> "${conf_file_path}"
-    for j in $(seq 0 "${num_keys}"); do
+    for j in $(seq 0 "$((num_keys - 1))"); do
         if [ $i != $j ]; then
            printf "  %s\n" "${nodes[$j]} ${peer_port}" >> "${conf_file_path}"
         fi
@@ -242,8 +251,8 @@ for i in $(seq 0 ${num_services}); do
         printf "      %s\n" "${network_name}:"
     } >> "${compose_file}"
 
-    node_ip=$(($i + 2))
-    if [ "${macos}" = "true" ]; then
+    node_ip=$((i + 2))
+    if [ "${publish}" = "true" ]; then
         printf  "        ipv4_address: %s\n" "${network}.${node_ip}" >> "${compose_file}"
         if [ "${node_name}" = "${rippled_name}" ]; then
             {
@@ -267,7 +276,7 @@ printf "\nnetworks:
   %s:
     name: \"%s\"" "${network_name}" "${network_name}" >> "${compose_file}"
 
-if [ $macos == "true" ]; then
+if [ "${publish}" == "true" ]; then
     printf "
     #driver: bridge # Should be the default?
     ipam:
