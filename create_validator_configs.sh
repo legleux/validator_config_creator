@@ -4,7 +4,7 @@ set -o errexit
 set +o xtrace
 set -o nounset
 
-rippled_image="rippleci/rippled:develop"
+rippled_image="${RIPPLED_IMAGE:-rippleci/rippled:develop}"
 num_keys=${1:-5}
 num_services=$num_keys
 confs_dir="$PWD/config"
