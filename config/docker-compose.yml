@@ -1,0 +1,65 @@
+services:
+  val0:
+    image: rippleci/rippled:develop
+    container_name: val0
+    hostname: val0
+    entrypoint: [
+      "rippled",
+      "--ledgerfile", "/opt/ledger.json"
+      # "--start"
+      ]
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "--insecure", "https://localhost:51235/health"]
+      interval: 5s
+    volumes:
+      - ./val0:/etc/opt/ripple
+      - ./ledger.json:/opt/ledger.json
+    networks:
+      rippled_net:
+        ipv4_address: 10.0.0.2
+
+  val1:
+    image: rippleci/rippled:develop
+    container_name: val1
+    hostname: val1
+    entrypoint: ["rippled"]
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "--insecure", "https://localhost:51235/health"]
+      interval: 5s
+    depends_on:
+      val0:
+        condition: service_healthy
+    volumes:
+      - ./val1:/etc/opt/ripple
+    networks:
+      rippled_net:
+        ipv4_address: 10.0.0.3
+
+  rippled:
+    image: rippleci/rippled:develop
+    container_name: rippled
+    hostname: rippled
+    entrypoint: ["rippled"]
+    healthcheck:
+      test: ["CMD", "/usr/bin/curl", "--insecure", "https://localhost:51235/health"]
+      interval: 5s
+    depends_on:
+      val0:
+        condition: service_healthy
+    volumes:
+      - ./rippled:/etc/opt/ripple
+    networks:
+      rippled_net:
+        ipv4_address: 10.0.0.7
+    ports:
+      - 0.0.0.0:5005:5005
+      - 0.0.0.0:6006:6006
+
+networks:
+  rippled_net:
+    name: "rippled_net"
+    #driver: bridge # Should be the default?
+    ipam:
+      config:
+        - subnet: "10.0.0.0/24"
+          gateway: 10.0.0.1
