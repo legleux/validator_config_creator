@@ -152,17 +152,17 @@ read -r -d '' config_template <<-EOF
 
 EOF
 
-read -r -d '' healthcheck <<-EOF
-    healthcheck:
-      test: ["CMD", "/usr/bin/curl", "--insecure", "https://localhost:${peer_port}/health"]
-      interval: 5s
-EOF
+# read -r -d '' healthcheck <<-EOF
+#     healthcheck:
+#       test: ["CMD", "/usr/bin/curl", "--insecure", "https://localhost:${peer_port}/health"]
+#       interval: 5s
+# EOF
 
-read -r -d '' depends_on <<-EOF
-    depends_on:
-      ${validator_hostname}0:
-        condition: service_healthy
-EOF
+# read -r -d '' depends_on <<-EOF
+#     depends_on:
+#       ${validator_hostname}0:
+#         condition: service_healthy
+# EOF
 set +e
 
 if [ -d "${confs_dir}" ]; then
@@ -231,8 +231,9 @@ for i in $(seq 0 $num_services); do
     entrypoint='"rippled"'
     if [ $i -eq 0 ]; then
         entrypoint="${entrypoint}, \"--start\""
+    elif [ $i -lt $num_services ]; then
+        entrypoint="${entrypoint}, \"--net\""
     fi
-
     compose_file="config/docker-compose.yml"
 
     {
@@ -241,10 +242,6 @@ for i in $(seq 0 $num_services); do
         printf "    container_name: %s\n" "${node_name}"
         printf "    hostname: %s\n" "${node_name}"
         printf "    entrypoint: %s\n" "[${entrypoint}]"
-        printf "    %s\n" "${healthcheck}" >> "${compose_file}"
-        if [ $i != "0" ]; then
-            printf "    %s\n" "${depends_on}" >> "${compose_file}"
-        fi
         printf "    volumes:\n"
         printf "      - ./%s:/etc/opt/ripple\n" "${node_name}"
         printf "    networks:\n"
@@ -307,6 +304,8 @@ docker compose --file config/docker-compose.yml up --detach
 ### Check how it's going. If it's not ready in about a minute, it probably never will be...
 docker exec rippled rippled --silent server_info |
     jq -r '.result.info | {hostid, server_state, complete_ledgers, last_close, uptime}'
+
+### rippled should be available on localhost so check the progress here: https://custom.xrpl.org/localhost:6006
 
 ### Make a payment of 99999 quintillion drops to rh1HPuRVsYYvThxG2Bs1MfjmrVC73S16Fb
 docker exec rippled rippled submit %s '%s'\n" "${secret}" "${tx_json}"
