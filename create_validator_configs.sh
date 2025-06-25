@@ -81,6 +81,7 @@ read -r -d '' config_template <<-EOF
   ## New Features
   AMM
   AMMClawback
+  Batch
   CheckCashMakesTrustLine
   Checks
   Clawback
